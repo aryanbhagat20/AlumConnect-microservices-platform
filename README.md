@@ -694,7 +694,9 @@ kill -9 <PID>   # Kill it
 
 <div align="center">
 
-### Built with ❤️ by the Team
+### Meet the Developers ❤️
+### Aryan Bhagat - www.linkedin.com/in/aryanbhagat2708 <br>
+### Suman Maharana - www.linkedin.com/in/suman-maharana-14a31a249
 
 **If you found this helpful, give it a ⭐!**
 
