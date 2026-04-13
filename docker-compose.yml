@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongo_data:/data/db]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+
+  api-gateway:
+    build: ./api-gateway
+    ports: ["5000:5000"]
+    depends_on: [auth-service, user-service, connection-service, chat-service, event-service]
+    env_file: ./api-gateway/.env
+
+  auth-service:
+    build: ./auth-service
+    ports: ["5001:5001"]
+    depends_on: [mongodb]
+    env_file: ./auth-service/.env
+
+  user-service:
+    build: ./user-service
+    ports: ["5002:5002"]
+    depends_on: [mongodb, redis]
+    env_file: ./user-service/.env
+
+  connection-service:
+    build: ./connection-service
+    ports: ["5003:5003"]
+    depends_on: [mongodb, rabbitmq]
+    env_file: ./connection-service/.env
+
+  chat-service:
+    build: ./chat-service
+    ports: ["5004:5004"]
+    depends_on: [mongodb, redis, rabbitmq]
+    env_file: ./chat-service/.env
+
+  event-service:
+    build: ./event-service
+    ports: ["5005:5005"]
+    depends_on: [mongodb, rabbitmq]
+    env_file: ./event-service/.env
+
+  notification-service:
+    build: ./notification-service
+    ports: ["5006:5006"]
+    depends_on: [rabbitmq]
+    env_file: ./notification-service/.env
+
+  frontend:
+    build: ./frontend
+    ports: ["3000:3000"]
+    depends_on: [api-gateway]
+
+volumes:
+  mongo_data:
