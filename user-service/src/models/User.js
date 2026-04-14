@@ -42,9 +42,7 @@ const userSchema = new mongoose.Schema({
   major: { type: String, default: '' },
   expectedGraduation: { type: Number },
 
-  // Connection system
-  connections: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  pendingRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
 
   isApproved: { type: Boolean, default: true }, // admin can disable
   isActive:   { type: Boolean, default: true  },

@@ -10,7 +10,7 @@ import { startEventConsumer }      from './consumers/eventConsumer.js';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 
 const httpServer = createServer(app);

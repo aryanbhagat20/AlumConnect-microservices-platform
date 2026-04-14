@@ -92,26 +92,79 @@ export const rejectRequest = async (req, res) => {
 
 export const getPendingRequests = async (req, res) => {
   try {
+    const myId = req.headers['x-user-id'];
     const requests = await Connection.find({
-      recipient: req.headers['x-user-id'],
+      recipient: myId,
       status: 'pending',
     });
-    res.status(200).json({ success: true, requests });
+
+    // Enrich requester info from user-service
+    const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+    const enriched = await Promise.all(
+      requests.map(async (conn) => {
+        const reqObj = conn.toObject();
+        try {
+          const resp = await fetch(`${USER_SERVICE}/users/${conn.requester}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            reqObj.requester = data.user;
+          } else {
+            reqObj.requester = { _id: conn.requester.toString(), name: 'Unknown User' };
+          }
+        } catch {
+          reqObj.requester = { _id: conn.requester.toString(), name: 'Unknown User' };
+        }
+        return reqObj;
+      })
+    );
+
+    res.status(200).json({ success: true, requests: enriched });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 
 export const getMyConnections = async (req, res) => {
   try {
+    const myId = req.headers['x-user-id'];
     const connections = await Connection.find({
       $or: [
-        { requester: req.headers['x-user-id'], status: 'accepted' },
-        { recipient: req.headers['x-user-id'], status: 'accepted' },
+        { requester: myId, status: 'accepted' },
+        { recipient: myId, status: 'accepted' },
       ],
     });
-    res.status(200).json({ success: true, connections });
+
+    // Extract the other user's ID from each connection
+    const userIds = connections.map(c =>
+      c.requester.toString() === myId ? c.recipient.toString() : c.requester.toString()
+    );
+
+    // Fetch user details from user-service for each connected user
+    const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+    const enrichedConnections = await Promise.all(
+      userIds.map(async (uid) => {
+        try {
+          const response = await fetch(`${USER_SERVICE}/users/${uid}`, {
+            headers: {
+              'x-user-id': myId,
+              'x-user-role': req.headers['x-user-role'] || 'student',
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            return data.user;
+          }
+          return { _id: uid, name: 'Unknown User' };
+        } catch {
+          return { _id: uid, name: 'Unknown User' };
+        }
+      })
+    );
+
+    res.status(200).json({ success: true, connections: enrichedConnections });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
@@ -128,12 +181,14 @@ export const getConnectionStatus = async (req, res) => {
     });
 
     let status = 'none';
+    let connectionId = null;
     if (connection) {
+      connectionId = connection._id;
       if (connection.status === 'pending')
         status = connection.requester.toString() === myId ? 'request_sent' : 'request_received';
       else if (connection.status === 'accepted') status = 'connected';
     }
-    res.status(200).json({ success: true, status });
+    res.status(200).json({ success: true, status, connectionId });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }

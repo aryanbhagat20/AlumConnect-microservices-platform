@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import { useSocket } from '../../hooks/useSocket';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ const StudentMessages = () => {
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
+    const [unreadMessages, setUnreadMessages] = useState({});
     const messagesEndRef = useRef(null);
     const selectedAlumniRef = useRef(null);
 
@@ -24,9 +25,27 @@ const StudentMessages = () => {
         fetchConnections();
 
         const unsubscribe = onMessageReceived((newMessage) => {
-            if (selectedAlumniRef.current &&
-                newMessage.sender._id === selectedAlumniRef.current._id) {
-                setMessages(prev => [...prev, newMessage]);
+            const currentAlumni = selectedAlumniRef.current;
+            const senderId = newMessage.sender._id;
+            const isFromCurrentChat = currentAlumni &&
+                (senderId === currentAlumni._id || newMessage.receiver._id === currentAlumni._id);
+
+            if (isFromCurrentChat) {
+                setMessages(prev => {
+                    // Remove optimistic temp messages when real message arrives
+                    const filtered = prev.filter(m => !String(m._id).startsWith('temp-'));
+                    const exists = filtered.find(m => m._id === newMessage._id);
+                    if (exists) return filtered;
+                    return [...filtered, newMessage];
+                });
+            } else if (senderId !== user?._id) {
+                // Message from a different contact — show unread bubble + toast
+                setUnreadMessages(prev => ({
+                    ...prev,
+                    [senderId]: (prev[senderId] || 0) + 1
+                }));
+                const senderName = newMessage.sender?.name || 'Someone';
+                toast(`💬 ${senderName}: ${newMessage.content?.substring(0, 40)}${newMessage.content?.length > 40 ? '…' : ''}`, { icon: '📩' });
             }
             fetchConnections();
         });
@@ -78,13 +97,18 @@ const StudentMessages = () => {
 
         setSending(true);
         try {
-            sendMessage(selectedAlumni._id, message);
-            setMessages(prev => [...prev, {
-                _id: Date.now(),
-                content: message,
-                sender: { _id: user._id },
-                createdAt: new Date().toISOString()
-            }]);
+            const trimmed = message.trim();
+            const sent = sendMessage(selectedAlumni._id, trimmed);
+            if (sent) {
+                // Optimistic update with temp ID for deduplication
+                setMessages(prev => [...prev, {
+                    _id: `temp-${Date.now()}`,
+                    content: trimmed,
+                    sender: { _id: user._id, name: user.name, profilePicture: user.profilePicture },
+                    receiver: { _id: selectedAlumni._id },
+                    createdAt: new Date().toISOString()
+                }]);
+            }
             setMessage("");
         } catch (error) {
             toast.error('Failed to send message');
@@ -97,6 +121,12 @@ const StudentMessages = () => {
         setSelectedAlumni(alumni);
         selectedAlumniRef.current = alumni;
         fetchMessages(alumni._id);
+        // Clear unread count for this contact
+        setUnreadMessages(prev => {
+            const updated = { ...prev };
+            delete updated[alumni._id];
+            return updated;
+        });
         navigate(`/student/messages/${alumni._id}`, { replace: true });
     };
 
@@ -129,9 +159,7 @@ const StudentMessages = () => {
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
                 {/* Brand */}
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        S
-                    </div>
+                    <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
                         <p className="text-white font-semibold text-sm leading-tight">Student Portal</p>
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>
@@ -216,6 +244,11 @@ const StudentMessages = () => {
                                             {alumni.company || alumni.role}
                                         </p>
                                     </div>
+                                    {unreadMessages[alumni._id] > 0 && (
+                                        <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                                            {unreadMessages[alumni._id]}
+                                        </span>
+                                    )}
                                 </div>
                             );
                         })

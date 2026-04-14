@@ -41,9 +41,35 @@ export const initSocket = (io) => {
           content: content.trim(),
         });
 
-        const populated = await Message.findById(message._id)
-          .populate('sender',   'name profilePicture')
-          .populate('receiver', 'name profilePicture');
+        // Fetch user details from user-service (can't use .populate() across DBs)
+        const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+        let senderInfo = { _id: userId, name: 'Unknown' };
+        let receiverInfo = { _id: receiverId, name: 'Unknown' };
+        try {
+          const [senderRes, receiverRes] = await Promise.all([
+            fetch(`${USER_SERVICE}/users/${userId}`),
+            fetch(`${USER_SERVICE}/users/${receiverId}`),
+          ]);
+          if (senderRes.ok) {
+            const sData = await senderRes.json();
+            senderInfo = { _id: userId, name: sData.user?.name, profilePicture: sData.user?.profilePicture };
+          }
+          if (receiverRes.ok) {
+            const rData = await receiverRes.json();
+            receiverInfo = { _id: receiverId, name: rData.user?.name, profilePicture: rData.user?.profilePicture };
+          }
+        } catch (e) {
+          console.error('Failed to fetch user details:', e.message);
+        }
+
+        const populated = {
+          _id: message._id,
+          content: message.content,
+          sender: senderInfo,
+          receiver: receiverInfo,
+          createdAt: message.createdAt,
+          isRead: message.isRead,
+        };
 
         // Deliver to both sender and receiver
         io.to(userId).emit('message:received', populated);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import toast from 'react-hot-toast';
 
 const StudentRegister = () => {
@@ -46,9 +46,25 @@ const StudentRegister = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md border border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Student Registration</h2>
+        <div className="min-h-screen bg-gradient-to-b from-slate-100 via-gray-100 to-stone-200 flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-72 h-72 bg-blue-200/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-200/15 rounded-full blur-3xl" />
+
+            <div className="relative z-10 w-full max-w-md">
+                <Link to="/student/login" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    Back to Login
+                </Link>
+
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+                <div className="flex justify-center mb-5">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-3 rounded-2xl shadow-sm">
+                        <img src="/AlumConnectLogo.png" alt="AlumConnect" className="h-20 w-20 object-contain" />
+                    </div>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-1 text-center">Student Registration</h2>
+                <p className="text-sm text-slate-400 text-center mb-6">Create your student account</p>
                 <form onSubmit={handleSubmit}>
                     <input 
                         type="text" 
@@ -122,14 +138,18 @@ const StudentRegister = () => {
                     <button 
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 text-white p-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3.5 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 shadow-md hover:shadow-lg transition-all"
                     >
                         {loading ? "Registering..." : "Register"}
                     </button>
                 </form>
-                <p className="text-center mt-4">
-                    <Link to="/student/login" className="text-blue-600 hover:underline">Already have account? Login</Link>
-                </p>
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                    <p className="text-center text-sm text-slate-500">
+                        Already have an account?{' '}
+                        <Link to="/student/login" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors">Login</Link>
+                    </p>
+                </div>
+            </div>
             </div>
         </div>
     );

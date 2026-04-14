@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -78,9 +78,7 @@ const AlumniProfile = () => {
             {/* ── Sidebar ── */}
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        A
-                    </div>
+                    <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
                         <p className="text-white font-semibold text-sm leading-tight">Alumni Portal</p>
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>

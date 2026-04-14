@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../Context/AuthContext';
 
 export const useSocket = () => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -37,7 +37,8 @@ export const useSocket = () => {
     console.log('👤 User ID:', user._id);
 
     // 🔥 Create socket
-    const newSocket = io('http://localhost:5004', {
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    const newSocket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket'], // more stable
       withCredentials: true,
@@ -64,7 +65,7 @@ export const useSocket = () => {
       setIsConnected(false);
     });
 
-    // 👤 ONLINE USERS
+    // 👤 ONLINE USERS (incremental updates)
     newSocket.off('user:online');
     newSocket.on('user:online', ({ userId, online }) => {
       console.log('👤 User', userId, online ? 'online' : 'offline');
@@ -75,6 +76,13 @@ export const useSocket = () => {
         else updated.delete(userId);
         return updated;
       });
+    });
+
+    // 👥 BULK ONLINE USERS (received on initial connection)
+    newSocket.off('users:online');
+    newSocket.on('users:online', (userIds) => {
+      console.log('👥 Currently online:', userIds);
+      setOnlineUsers(new Set(userIds));
     });
 
     // 📨 MESSAGE RECEIVED

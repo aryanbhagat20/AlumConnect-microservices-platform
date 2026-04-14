@@ -1,6 +1,5 @@
 import { Message } from '../models/Message.js';
-import { publishEvent } from '../events/publisher.js';
-import { getChatCache, setChatCache, invalidateChatCache } from '../cache/chatCache.js';
+import { getChatCache, setChatCache } from '../cache/chatCache.js';
 
 export const getConversation = async (req, res) => {
   try {
@@ -11,16 +10,50 @@ export const getConversation = async (req, res) => {
     const cached = await getChatCache(cacheKey);
     if (cached) return res.json({ success: true, messages: cached, fromCache: true });
 
-    const messages = await Message.find({
+    const rawMessages = await Message.find({
       $or: [
         { sender: myId, receiver: userId },
         { sender: userId, receiver: myId },
       ],
     }).sort({ createdAt: 1 });
 
+    // Fetch user details for both participants from user-service
+    const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+    const userCache = {};
+    const fetchUser = async (uid) => {
+      if (userCache[uid]) return userCache[uid];
+      try {
+        const resp = await fetch(`${USER_SERVICE}/users/${uid}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          userCache[uid] = { _id: uid, name: data.user?.name, profilePicture: data.user?.profilePicture };
+        } else {
+          userCache[uid] = { _id: uid, name: 'Unknown' };
+        }
+      } catch {
+        userCache[uid] = { _id: uid, name: 'Unknown' };
+      }
+      return userCache[uid];
+    };
+
+    // Pre-fetch both users
+    await Promise.all([fetchUser(myId), fetchUser(userId)]);
+
+    // Enrich messages with user objects
+    const messages = rawMessages.map(msg => ({
+      _id: msg._id,
+      content: msg.content,
+      sender: userCache[msg.sender.toString()] || { _id: msg.sender.toString() },
+      receiver: userCache[msg.receiver.toString()] || { _id: msg.receiver.toString() },
+      isRead: msg.isRead,
+      createdAt: msg.createdAt,
+      updatedAt: msg.updatedAt,
+    }));
+
     await setChatCache(cacheKey, messages);
     res.json({ success: true, messages });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
@@ -33,13 +66,13 @@ export const getInbox = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     const seen = new Set();
-    const inbox = [];
+    const rawInbox = [];
     for (const msg of messages) {
       const partnerId = msg.sender.toString() === myId
         ? msg.receiver.toString() : msg.sender.toString();
       if (!seen.has(partnerId)) {
         seen.add(partnerId);
-        inbox.push({
+        rawInbox.push({
           partnerId,
           lastMessage: msg.content,
           lastMessageAt: msg.createdAt,
@@ -47,32 +80,30 @@ export const getInbox = async (req, res) => {
         });
       }
     }
+
+    // Enrich partner info from user-service
+    const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+    const inbox = await Promise.all(
+      rawInbox.map(async (item) => {
+        try {
+          const resp = await fetch(`${USER_SERVICE}/users/${item.partnerId}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            item.partnerName = data.user?.name || 'Unknown';
+            item.partnerPicture = data.user?.profilePicture || '';
+          } else {
+            item.partnerName = 'Unknown';
+          }
+        } catch {
+          item.partnerName = 'Unknown';
+        }
+        return item;
+      })
+    );
+
     res.json({ success: true, inbox });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
-};
-
-// Called by Socket.IO handler after saving a message
-export const saveAndPublishMessage = async ({ senderId, receiverId, content }) => {
-  const message = await Message.create({
-    sender: senderId,
-    receiver: receiverId,
-    content,
-  });
-
-  // Invalidate stale cache for this conversation
-  const cacheKey = [senderId, receiverId].sort().join(':');
-  await invalidateChatCache(cacheKey);
-
-  // Publish to broker — Notification Service picks this up
-  await publishEvent('message.sent', {
-    messageId:   message._id,
-    senderId,
-    receiverId,
-    content,
-    createdAt:   message.createdAt,
-  });
-
-  return message;
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './Context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
 // Pages
@@ -14,7 +14,7 @@ import AlumniProfile from './Pages/Alumni/AlumniProfile';
 import AlumniRequests from './Pages/Alumni/AlumniRequests';
 import AlumniEvents from './Pages/Alumni/AlumniEvents';
 import AlumniChat from './Pages/Alumni/AlumniChat';
- 
+
 // Student Pages
 import StudentLogin from './Pages/Student/StudentLogin';
 import StudentRegister from './Pages/Student/StudentRegister';

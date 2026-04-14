@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -87,6 +87,7 @@ const ManageUsers = () => {
                 <nav className="p-4 space-y-2">
                     <Link to="/admin/dashboard" className="block p-3 hover:bg-gray-100 rounded">Dashboard</Link>
                     <Link to="/admin/users" className="block p-3 bg-purple-100 rounded">Manage Users</Link>
+                    <Link to="/admin/events" className="block p-3 hover:bg-gray-100 rounded">Events</Link>
                     <button 
                         onClick={handleLogout}
                         className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20"

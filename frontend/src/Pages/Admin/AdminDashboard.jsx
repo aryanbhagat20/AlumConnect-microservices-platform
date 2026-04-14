@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -26,12 +26,11 @@ const AdminDashboard = () => {
             setLoading(true);
             
             // Fetch all data in parallel
-            const [usersRes, alumniRes, studentsRes, eventsRes, connectionsRes] = await Promise.all([
+            const [usersRes, alumniRes, studentsRes, eventsRes] = await Promise.all([
                 api.get('/users'),
                 api.get('/users/alumni'),
                 api.get('/users/students'),
-                api.get('/events'),
-                api.get('/connections/pending')
+                api.get('/events')
             ]);
             
             setStats({
@@ -39,7 +38,7 @@ const AdminDashboard = () => {
                 alumni: alumniRes.data.alumni?.length || 0,
                 students: studentsRes.data.students?.length || 0,
                 activeEvents: eventsRes.data.events?.length || 0,
-                pendingConnections: connectionsRes.data.requests?.length || 0
+                pendingConnections: 0
             });
             
             // Get recent users (last 5)
@@ -83,6 +82,7 @@ const AdminDashboard = () => {
                 <nav className="p-4 space-y-2">
                     <Link to="/admin/dashboard" className="block p-3 bg-purple-100 rounded">Dashboard</Link>
                     <Link to="/admin/users" className="block p-3 hover:bg-gray-100 rounded">Manage Users</Link>
+                    <Link to="/admin/events" className="block p-3 hover:bg-gray-100 rounded">Events</Link>
                     <button 
                         onClick={handleLogout}
                         className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20"

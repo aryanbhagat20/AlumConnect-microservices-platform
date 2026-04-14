@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -15,6 +15,7 @@ const StudentDashboard = () => {
         messages: 0
     });
     const [recentAlumni, setRecentAlumni] = useState([]);
+    const [connectionStatuses, setConnectionStatuses] = useState({});
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,10 +26,11 @@ const StudentDashboard = () => {
         try {
             setLoading(true);
 
-            const [alumniRes, connectionsRes, eventsRes] = await Promise.all([
+            const [alumniRes, connectionsRes, eventsRes, inboxRes] = await Promise.all([
                 api.get('/users/alumni'),
                 api.get('/connections'),
-                api.get('/events')
+                api.get('/events'),
+                api.get('/messages/inbox').catch(() => ({ data: { inbox: [] } }))
             ]);
 
             setStats({
@@ -36,10 +38,27 @@ const StudentDashboard = () => {
                 connections: connectionsRes.data.connections?.length || 0,
                 pendingRequests: 0,
                 events: eventsRes.data.events?.length || 0,
-                messages: 0
+                messages: inboxRes.data.inbox?.length || 0
             });
 
-            setRecentAlumni(alumniRes.data.alumni?.slice(0, 3) || []);
+            const allAlumni = alumniRes.data.alumni || [];
+            const filteredAlumni = allAlumni.filter(alum => alum._id !== user?._id);
+            const featured = filteredAlumni.slice(0, 3);
+            setRecentAlumni(featured);
+
+            // Fetch connection status for each featured alumni
+            const statuses = {};
+            await Promise.all(
+                featured.map(async (alum) => {
+                    try {
+                        const statusRes = await api.get(`/connections/status/${alum._id}`);
+                        statuses[alum._id] = statusRes.data.status || 'none';
+                    } catch {
+                        statuses[alum._id] = 'none';
+                    }
+                })
+            );
+            setConnectionStatuses(statuses);
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -75,9 +94,7 @@ const StudentDashboard = () => {
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
                 {/* Brand */}
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        S
-                    </div>
+                    <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
                         <p className="text-white font-semibold text-sm leading-tight">Student Portal</p>
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>
@@ -210,7 +227,9 @@ const StudentDashboard = () => {
                                         <p className="text-sm">No alumni found</p>
                                     </div>
                                 ) : (
-                                    recentAlumni.map(alum => (
+                                    recentAlumni.map(alum => {
+                                        const status = connectionStatuses[alum._id] || 'none';
+                                        return (
                                         <div
                                             key={alum._id}
                                             className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all"
@@ -222,14 +241,25 @@ const StudentDashboard = () => {
                                                 <p className="text-sm font-semibold text-slate-800 truncate">{alum.name}</p>
                                                 <p className="text-xs text-slate-400 truncate">{alum.company || 'Alumni'}</p>
                                             </div>
-                                            <Link
-                                                to="/student/alumni"
-                                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                                            >
-                                                Connect
-                                            </Link>
+                                            {status === 'connected' ? (
+                                                <span className="text-xs font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg flex-shrink-0">
+                                                    Connected ✓
+                                                </span>
+                                            ) : status === 'request_sent' ? (
+                                                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg flex-shrink-0">
+                                                    Request Sent
+                                                </span>
+                                            ) : (
+                                                <Link
+                                                    to="/student/alumni"
+                                                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                                                >
+                                                    Connect
+                                                </Link>
+                                            )}
                                         </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>

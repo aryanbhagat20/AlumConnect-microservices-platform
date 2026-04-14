@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -20,7 +20,13 @@ const StudentEvents = () => {
         try {
             setLoading(true);
             const response = await api.get('/events');
-            setEvents(response.data.events || []);
+            const allEvents = response.data.events || [];
+            setEvents(allEvents);
+            // Pre-populate registered events from attendees array
+            const myRegistered = allEvents
+                .filter(e => e.attendees?.includes(user?._id))
+                .map(e => e._id);
+            setRegisteredEvents(myRegistered);
         } catch (error) {
             console.error('Error fetching events:', error);
             toast.error('Failed to load events');
@@ -32,10 +38,11 @@ const StudentEvents = () => {
     const handleRegister = async (eventId) => {
         setRegistering(eventId);
         try {
+            await api.post(`/events/${eventId}/register`);
             setRegisteredEvents([...registeredEvents, eventId]);
             toast.success('Registered for event successfully!');
         } catch (error) {
-            toast.error('Failed to register for event');
+            toast.error(error.response?.data?.message || 'Failed to register for event');
         } finally {
             setRegistering(null);
         }
@@ -43,6 +50,7 @@ const StudentEvents = () => {
 
     const handleUnregister = async (eventId) => {
         try {
+            await api.post(`/events/${eventId}/unregister`);
             setRegisteredEvents(registeredEvents.filter(id => id !== eventId));
             toast.success('Unregistered from event');
         } catch (error) {
@@ -75,9 +83,7 @@ const StudentEvents = () => {
             {/* ── Sidebar ── */}
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        S
-                    </div>
+                    <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
                         <p className="text-white font-semibold text-sm leading-tight">Student Portal</p>
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>
@@ -179,7 +185,7 @@ const StudentEvents = () => {
                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                                             </svg>
-                                                            {event.createdBy?.name || 'Alumni'}
+                                                            {event.targetAudience === 'all' ? 'Everyone' : event.targetAudience === 'alumni' ? 'Alumni' : 'Students'}
                                                         </span>
                                                         {event.maxAttendees && (
                                                             <span className="flex items-center gap-1">

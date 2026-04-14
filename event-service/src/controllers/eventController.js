@@ -21,10 +21,33 @@ export const createEvent = async (req, res) => {
   }
 };
 
+// Helper: fetch user name from user-service
+const fetchUserName = async (userId) => {
+  const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+  try {
+    const resp = await fetch(`${USER_SERVICE}/users/${userId}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      return { _id: userId, name: data.user?.name || 'Unknown' };
+    }
+  } catch {}
+  return { _id: userId, name: 'Alumni' };
+};
+
 export const getEvents = async (req, res) => {
   try {
     const events = await Event.find({ isActive: true }).sort({ date: 1 });
-    res.status(200).json({ success: true, events });
+
+    // Enrich createdBy with user names from user-service
+    const enriched = await Promise.all(
+      events.map(async (event) => {
+        const obj = event.toObject();
+        obj.createdBy = await fetchUserName(event.createdBy.toString());
+        return obj;
+      })
+    );
+
+    res.status(200).json({ success: true, events: enriched });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -67,6 +90,40 @@ export const deleteEvent = async (req, res) => {
 
     await event.deleteOne();
     res.status(200).json({ success: true, message: 'Event deleted.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// BUG 2 FIX: Register for an event
+export const registerForEvent = async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    if (event.attendees.includes(userId)) {
+      return res.status(409).json({ success: false, message: 'Already registered.' });
+    }
+
+    event.attendees.push(userId);
+    await event.save();
+    res.status(200).json({ success: true, message: 'Registered successfully.', event });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// BUG 2 FIX: Unregister from an event
+export const unregisterFromEvent = async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    event.attendees = event.attendees.filter(id => id.toString() !== userId);
+    await event.save();
+    res.status(200).json({ success: true, message: 'Unregistered successfully.', event });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }

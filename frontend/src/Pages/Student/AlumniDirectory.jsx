@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../Context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -9,6 +9,8 @@ const AlumniDirectory = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [sendingRequest, setSendingRequest] = useState(null);
+    const [connectionStatuses, setConnectionStatuses] = useState({});
+    const [connectionIds, setConnectionIds] = useState({});
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -23,6 +25,25 @@ const AlumniDirectory = () => {
             const allAlumni = response.data.alumni || [];
             const filteredAlumni = allAlumni.filter(alum => alum._id !== user?._id);
             setAlumni(filteredAlumni);
+
+            // Fetch connection status for each alumni
+            const statuses = {};
+            const connIds = {};
+            await Promise.all(
+                filteredAlumni.map(async (alum) => {
+                    try {
+                        const statusRes = await api.get(`/connections/status/${alum._id}`);
+                        statuses[alum._id] = statusRes.data.status || 'none';
+                        if (statusRes.data.connectionId) {
+                            connIds[alum._id] = statusRes.data.connectionId;
+                        }
+                    } catch {
+                        statuses[alum._id] = 'none';
+                    }
+                })
+            );
+            setConnectionStatuses(statuses);
+            setConnectionIds(connIds);
         } catch (error) {
             console.error('Error fetching alumni:', error);
             toast.error('Failed to load alumni');
@@ -40,9 +61,25 @@ const AlumniDirectory = () => {
         try {
             await api.post(`/connections/request/${alumniId}`);
             toast.success('Connection request sent!');
+            setConnectionStatuses(prev => ({ ...prev, [alumniId]: 'request_sent' }));
         } catch (error) {
             console.error('Error sending request:', error);
             toast.error(error.response?.data?.message || 'Failed to send request');
+        } finally {
+            setSendingRequest(null);
+        }
+    };
+
+    const handleAcceptRequest = async (alumniId) => {
+        const connId = connectionIds[alumniId];
+        if (!connId) { toast.error('Connection not found'); return; }
+        setSendingRequest(alumniId);
+        try {
+            await api.put(`/connections/accept/${connId}`);
+            toast.success('Connection accepted!');
+            setConnectionStatuses(prev => ({ ...prev, [alumniId]: 'connected' }));
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to accept');
         } finally {
             setSendingRequest(null);
         }
@@ -79,9 +116,7 @@ const AlumniDirectory = () => {
             {/* ── Sidebar ── */}
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        S
-                    </div>
+                    <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
                         <p className="text-white font-semibold text-sm leading-tight">Student Portal</p>
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>
@@ -191,13 +226,49 @@ const AlumniDirectory = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleConnect(alum._id)}
-                                        disabled={sendingRequest === alum._id}
-                                        className="mt-4 w-full bg-blue-500 text-white text-xs font-semibold py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                    >
-                                        {sendingRequest === alum._id ? 'Sending…' : 'Connect'}
-                                    </button>
+                                    {(() => {
+                                        const status = connectionStatuses[alum._id] || 'none';
+                                        if (status === 'connected') {
+                                            return (
+                                                <button
+                                                    disabled
+                                                    className="mt-4 w-full bg-green-100 text-green-700 text-xs font-semibold py-2 rounded-lg cursor-default"
+                                                >
+                                                    Connected ✓
+                                                </button>
+                                            );
+                                        }
+                                        if (status === 'request_sent') {
+                                            return (
+                                                <button
+                                                    disabled
+                                                    className="mt-4 w-full bg-slate-100 text-slate-500 text-xs font-semibold py-2 rounded-lg cursor-default"
+                                                >
+                                                    Request Sent
+                                                </button>
+                                            );
+                                        }
+                                        if (status === 'request_received') {
+                                            return (
+                                                <button
+                                                    onClick={() => handleAcceptRequest(alum._id)}
+                                                    disabled={sendingRequest === alum._id}
+                                                    className="mt-4 w-full bg-amber-500 text-white text-xs font-semibold py-2 rounded-lg hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                                                >
+                                                    {sendingRequest === alum._id ? 'Accepting…' : 'Accept Request'}
+                                                </button>
+                                            );
+                                        }
+                                        return (
+                                            <button
+                                                onClick={() => handleConnect(alum._id)}
+                                                disabled={sendingRequest === alum._id}
+                                                className="mt-4 w-full bg-blue-500 text-white text-xs font-semibold py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                            >
+                                                {sendingRequest === alum._id ? 'Sending…' : 'Connect'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             ))}
                         </div>
