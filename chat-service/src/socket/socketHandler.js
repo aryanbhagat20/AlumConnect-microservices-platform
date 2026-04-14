@@ -27,6 +27,9 @@ export const initSocket = (io) => {
     onlineUsers.set(userId, socket.id);
     socket.join(userId); // personal room
 
+    // Send this user the full list of who's already online
+    socket.emit('users:online', Array.from(onlineUsers.keys()));
+
     // Tell everyone this user is online
     io.emit('user:online', { userId, online: true });
 
