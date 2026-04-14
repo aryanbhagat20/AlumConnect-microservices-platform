@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { Message } from '../models/Message.js';
+import { publishEvent } from '../events/publisher.js';
 
 // Track online users: userId -> socketId
 const onlineUsers = new Map();
@@ -77,6 +78,15 @@ export const initSocket = (io) => {
         // Deliver to both sender and receiver
         io.to(userId).emit('message:received', populated);
         io.to(receiverId).emit('message:received', populated);
+
+        // Publish to RabbitMQ for notification-service
+        await publishEvent('message.sent', {
+          senderId: userId,
+          receiverId,
+          content: message.content,
+          messageId: message._id,
+          createdAt: message.createdAt,
+        });
 
       } catch (err) {
         console.error('Send message error:', err);
